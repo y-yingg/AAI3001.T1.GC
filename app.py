@@ -192,7 +192,7 @@ def main():
 
     with col1:
         if st.button("🚀 Run Model", type="primary"):
-            with st.spinner("Running model on validation data..."):
+            with st.spinner("Running model on validation data...."):
                 collected_examples = get_model_predictions(model, val_loader, CLASS_NAMES)
                 st.session_state.model_results = collected_examples
             st.rerun()
