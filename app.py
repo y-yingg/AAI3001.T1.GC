@@ -300,6 +300,8 @@ def main():
             st.write(f"**Predicted Class:** {CLASS_NAMES[predicted_class]}")
             st.write(f"**Confidence:** {confidence:.2%}")
 
+    st.markdown("---")
+    
     # Validation demo
     if "model_results" not in st.session_state:
         st.session_state.model_results = None
