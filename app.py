@@ -11,6 +11,10 @@ import random
 from utils import denormalize, CsvImageDataset
 import requests
 import io
+import smtplib
+from email.message import EmailMessage
+from typing import Optional
+
 
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 CLASS_NAMES = ["no pedestrian", "pedestrian"]
@@ -25,34 +29,90 @@ DATALOADER_KW = dict(
     persistent_workers=False
 )
 
+# ---------- Email (Gmail) config ----------
+SENDER_EMAIL = "sitprojects2024@gmail.com"
+SENDER_APP_PASSWORD = "hglikztdmngldhvf"  # Gmail app password
+
 # ---------- Telegram helpers ----------
 def send_telegram_message(bot_token: str, chat_id: str, message: str):
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
         payload = {"chat_id": chat_id, "text": message}
-        resp = requests.post(url, data=payload, timeout=10)
-        if resp.status_code != 200:
-            st.error(f"Failed to send alert: {resp.text}")
-    except Exception as e:
-        st.error(f"Error sending Telegram alert: {e}")
+        requests.post(url, data=payload, timeout=15)
+        return True
+    except Exception:
+        return False  # fail silently
 
 def send_telegram_photo(bot_token: str, chat_id: str, caption: str, image: Image.Image):
+    """
+    Try to send photo if under 5 MB.
+    If too large or fails (timeout/error), fallback to text-only message with apology.
+    """
+    apology_msg = caption + " Sorry, the file size is too large for telegram so it could not be send here."
     try:
-        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+        import sys
         buf = io.BytesIO()
-        image.save(buf, format="PNG")
+        image.save(buf, format="JPEG", quality=85)  # smaller than PNG
         buf.seek(0)
-        files = {"photo": buf}
+
+        size_bytes = sys.getsizeof(buf.getvalue())
+        max_size = 5 * 1024 * 1024  # 5 MB
+
+        if size_bytes > max_size:
+            send_telegram_message(bot_token, chat_id, apology_msg)
+            return True
+
+        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
         data = {"chat_id": chat_id, "caption": caption}
-        resp = requests.post(url, data=data, files=files, timeout=10)
+        files = {"photo": ("image.jpg", buf, "image/jpeg")}
+        resp = requests.post(url, data=data, files=files, timeout=30)
+
         if resp.status_code != 200:
-            st.error(f"Failed to send photo alert: {resp.text}")
-    except Exception as e:
-        st.error(f"Error sending Telegram photo alert: {e}")
+            # fallback if Telegram rejects
+            send_telegram_message(bot_token, chat_id, apology_msg)
+        return True
+    except Exception:
+        # fallback if request fails (timeout, network, etc.)
+        send_telegram_message(bot_token, chat_id, apology_msg)
+        return True
+
+# ---------- Email helpers ----------
+def send_email_alert(
+    to_email: str,
+    subject: str,
+    body: str,
+    image: Optional[Image.Image],
+    attach_image: bool
+) -> bool:
+    """
+    Sends an email via Gmail SMTP. If attach_image=True and image provided,
+    attaches the image (no size/memory limit checks here).
+    """
+    try:
+        msg = EmailMessage()
+        msg["From"] = SENDER_EMAIL
+        msg["To"] = to_email
+        msg["Subject"] = subject
+        msg.set_content(body)
+
+        if attach_image and image is not None:
+            buf = io.BytesIO()
+            image.save(buf, format="JPEG", quality=90)
+            img_bytes = buf.getvalue()
+            msg.add_attachment(
+                img_bytes, maintype="image", subtype="jpeg", filename="detected.jpg"
+            )
+
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
+            smtp.send_message(msg)
+        return True
+    except Exception:
+        return False
+
 
 def label_is_pedestrian(label_text: str) -> bool:
     return "pedestrian" in label_text.lower()
-
 
 def get_model_predictions(model, val_loader, class_names, samples_per_class=3):
     model.eval()
@@ -127,21 +187,40 @@ def main():
         st.write("Upload an image and let our AI model classify it!")
         uploaded_file = st.file_uploader("Choose an image...", type=IMG_EXT)
 
-        # Notification choices
-        notify_choice = st.radio("Do you want to be notified if a pedestrian is detected?", ["No", "Yes"], index=0)
-        bot_token = chat_id = None
-        if notify_choice == "Yes":
-            bot_token = st.text_input("Telegram Bot Token", type="password")
-            chat_id = st.text_input("Telegram Chat ID")
+        # 1) Top-level: notify or not
+        notify_choice = st.radio(
+            "Do you want to be notified if a pedestrian is detected?",
+            ["No", "Yes"], index=0
+        )
 
-            # New ratio for photo sending
+        # Defaults
+        send_photo_choice = "No"
+        bot_token = chat_id = None
+        to_email = None
+        notify_channel = None
+
+        if notify_choice == "Yes":
+            # 2) Channel selector
+            notify_channel = st.radio(
+                "How would you like to be notified?",
+                ["Telegram", "Email", "Both"],
+                index=0
+            )
+
+            # 3) Inputs per channel
+            if notify_channel in ("Telegram", "Both"):
+                bot_token = st.text_input("Telegram Bot Token", type="password")
+                chat_id = st.text_input("Telegram Chat ID")
+
+            if notify_channel in ("Email", "Both"):
+                to_email = st.text_input("Notification Email Address")
+
+            # 4) Always show send-file choice for all channels
             send_photo_choice = st.radio(
                 "Do you want the detected file to be sent along with the message?",
                 ["No", "Yes"],
                 index=0
             )
-        else:
-            send_photo_choice = "No"
 
         predict_btn = None
         image = None
@@ -167,20 +246,47 @@ def main():
                 predicted_class = probabilities.argmax().item()
                 confidence = probabilities[predicted_class].item()
 
-            # Alert logic
+            # ---------- Alert logic ----------
+            caption_text = "🚨 Pedestrian has been detected from the files uploaded!"
+            subject_text = "AAI3001 Image Classification Alert"
+            attach_image = (send_photo_choice == "Yes")
+
             if notify_choice == "Yes":
-                if not bot_token or not chat_id:
-                    st.info("Notification enabled but Bot Token/Chat ID missing. No alert sent.")
-                else:
-                    pred_label_text = CLASS_NAMES[predicted_class] if predicted_class < len(CLASS_NAMES) else f"class_{predicted_class}"
-                    if label_is_pedestrian(pred_label_text):
-                        if send_photo_choice == "Yes":
-                            send_telegram_photo(bot_token, chat_id, "🚨 Pedestrian has been detected from the files uploaded!", image)
+                pred_label_text = CLASS_NAMES[predicted_class] if predicted_class < len(CLASS_NAMES) else f"class_{predicted_class}"
+                if label_is_pedestrian(pred_label_text):
+                    any_sent = False
+
+                    # Telegram path
+                    if notify_channel in ("Telegram", "Both"):
+                        if not bot_token or not chat_id:
+                            st.info("Telegram selected but Bot Token/Chat ID missing. Skipped Telegram.")
                         else:
-                            send_telegram_message(bot_token, chat_id, "🚨 Pedestrian has been detected from the files uploaded!")
-                        st.success("Alert sent to Telegram.")
+                            if attach_image:
+                                ok = send_telegram_photo(bot_token, chat_id, caption_text, image)
+                            else:
+                                ok = send_telegram_message(bot_token, chat_id, caption_text)
+                            any_sent = ok or any_sent
+
+                    # Email path
+                    if notify_channel in ("Email", "Both"):
+                        if not to_email:
+                            st.info("Email selected but recipient address is missing. Skipped Email.")
+                        else:
+                            ok = send_email_alert(
+                                to_email=to_email,
+                                subject=subject_text,
+                                body=caption_text,
+                                image=image if attach_image else None,
+                                attach_image=attach_image
+                            )
+                            any_sent = ok or any_sent
+
+                    if any_sent:
+                        st.success("Alert sent.")
                     else:
-                        st.info("No pedestrian detected; no alert sent.")
+                        st.info("Notification enabled, but nothing was sent (missing details?).")
+                else:
+                    st.info("No pedestrian detected; no alert sent.")
 
     if uploaded_file and predict_btn:
         with col2:
