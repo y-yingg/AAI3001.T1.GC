@@ -144,8 +144,8 @@ def display_classification_examples(collected_examples, model, class_names, samp
             for col_idx, (img, label, pred) in enumerate(examples):
                 with cols[col_idx]:
                     pil_img = denormalize(img)
-                    st.image(pil_img, use_container_width=True)
-                    # st.image(pil_img, use_column_width=True)
+                    #st.image(pil_img, use_container_width=True)
+                    st.image(pil_img, use_column_width=True)
                     true_label = class_names[label.item()] if label.item() < len(class_names) else f"Class {label.item()}"
                     pred_label = class_names[pred.item()] if pred.item() < len(class_names) else f"Class {pred.item()}"
                     is_correct = pred == label
@@ -173,7 +173,7 @@ def main():
         model = model.to(DEVICE)
         return model, checkpoint
 
-    model, checkpoint = load_model('models/best_resnet18_pedestrian.pt')
+    model, checkpoint = load_model('models/resnet18_pedestrian.pt')
     CLASS_NAMES = checkpoint.get("class_names", ["no pedestrian", "pedestrian"])
 
     val_tfms = transforms.Compose([
@@ -293,8 +293,8 @@ def main():
     if uploaded_file and predict_btn:
         with col2:
             st.subheader("Uploaded Image")
-            st.image(image, caption='Uploaded Image', use_container_width=True)
-            # st.image(image, caption='Uploaded Image', use_column_width=True)
+            #st.image(image, caption='Uploaded Image', use_container_width=True)
+            st.image(image, caption='Uploaded Image', use_column_width=True)
         with col3:
             st.subheader("Prediction")
             st.write(f"**Predicted Class:** {CLASS_NAMES[predicted_class]}")
