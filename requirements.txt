@@ -7,3 +7,4 @@ streamlit==1.40.0
 torch==2.8.0
 torchvision==0.23.0
 requests==2.32.3
+streamlit-image-select
