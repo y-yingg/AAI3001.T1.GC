@@ -173,7 +173,7 @@ def main():
         model = model.to(DEVICE)
         return model, checkpoint
 
-    model, checkpoint = load_model('models/resnet18_pedestrian.pt')
+    model, checkpoint = load_model('models/best_resnet18_pedestrian.pt')
     CLASS_NAMES = checkpoint.get("class_names", ["no pedestrian", "pedestrian"])
 
     val_tfms = transforms.Compose([
