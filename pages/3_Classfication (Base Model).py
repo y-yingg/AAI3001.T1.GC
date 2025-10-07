@@ -18,6 +18,7 @@ from typing import Optional
 # -----------------------------
 # Config
 # -----------------------------
+st.set_page_config(page_title="Classification (Base Resnet Model)", page_icon="🖼️", layout="wide")
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 VAL_DIR   = Path("data/validation")
@@ -167,7 +168,6 @@ def load_model(path):
     return model, class_names
 
 def main():
-    st.set_page_config(page_title="Classification (Base Resnet Model)", page_icon="🖼️", layout="wide")
     st.title("Classification (Base Resnet Model)")
 
     # Load model + data

@@ -1,5 +1,6 @@
 from pathlib import Path
 
+import numpy as np
 import streamlit as st
 import torch
 from PIL import Image
@@ -18,6 +19,8 @@ from typing import Optional
 # -----------------------------
 # Config
 # -----------------------------
+st.set_page_config(page_title="Classification (Best Resnet Model)", page_icon="🖼️", layout="wide")
+
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 VAL_DIR   = Path("data/validation")
@@ -111,24 +114,75 @@ def label_is_pedestrian(label_text: str) -> bool:
 # -----------------------------
 # Inference helpers
 # -----------------------------
-def get_model_predictions(model, val_loader, class_names, samples_per_class=3):
+
+def get_model_predictions(model, val_loader, class_names, samples_per_class=3, device=None,
+                          use_tta=False, threshold=0.5, pedestrian_class_idx=1):
+    """
+    Get model predictions with optional TTA and threshold tuning.
+
+    Args:
+        model: PyTorch model
+        val_loader: DataLoader for validation data
+        class_names: List of class names
+        samples_per_class: Number of samples to collect per class
+        device: Device to run inference on
+        use_tta: Whether to use Test Time Augmentation
+        threshold: Decision threshold for pedestrian class (only used when use_tta=True)
+        pedestrian_class_idx: Index of pedestrian class (default=1)
+
+    Returns:
+        Dictionary with class indices as keys and lists of (image_tensor, true_label, prediction) tuples
+        EXACTLY the same structure as original: {class_idx: [(img, label, pred), ...]}
+    """
+    if device is None:
+        device = next(model.parameters()).device
+
     model.eval()
     collected = {cls: [] for cls in range(len(class_names))}
     all_examples = []
+
+    def predict_tta_logits(model, x):
+        """TTA prediction with horizontal flip"""
+        logits = model(x)
+        logits += model(torch.flip(x, dims=[3]))  # H-flip
+        return logits / 2.0
+
     with torch.no_grad():
         for images, labels in val_loader:
-            images, labels = images.to(DEVICE), labels.to(DEVICE)
-            outputs = model(images)
-            preds = outputs.argmax(dim=1)
+            images, labels = images.to(device), labels.to(device)
+
+            if use_tta:
+                # Use TTA and threshold logic
+                logits = predict_tta_logits(model, images)
+                probs = torch.softmax(logits, dim=1)
+                pedestrian_probs = probs[:, pedestrian_class_idx]
+
+                # Apply threshold for pedestrian class
+                preds = torch.where(
+                    pedestrian_probs > threshold,
+                    torch.tensor(pedestrian_class_idx, device=device),
+                    torch.tensor(1 - pedestrian_class_idx, device=device)  # other class
+                )
+            else:
+                # Standard argmax prediction (original behavior)
+                outputs = model(images)
+                preds = outputs.argmax(dim=1)
+
             for i in range(len(labels)):
+                # Maintain EXACT same structure: (image, label, prediction)
                 all_examples.append((images[i], labels[i], preds[i]))
+
+    # Shuffle and collect balanced samples (same logic as original)
     random.shuffle(all_examples)
+
     for img, label, pred in all_examples:
         cls = label.item()
         if len(collected[cls]) < samples_per_class:
             collected[cls].append((img, label, pred))
+
         if all(len(v) >= samples_per_class for v in collected.values()):
             break
+
     return collected
 
 def display_classification_examples(collected_examples, model, class_names, samples_per_class=3):
@@ -166,7 +220,6 @@ def load_model(path):
     return model, class_names
 
 def main():
-    st.set_page_config(page_title="Classification (Best Resnet Model)", page_icon="🖼️", layout="wide")
     st.title("Classification (Best Resnet Model)")
 
     # Load model + data
@@ -223,24 +276,48 @@ def main():
         predict_btn = None
         image = None
 
-    if uploaded_file:
-        predict_btn = st.button("Predict Image")
+        if uploaded_file:
+            predict_btn = st.button("Predict Image")
 
-        if predict_btn:
-            image = Image.open(uploaded_file).convert("RGB")
-            preprocess = transforms.Compose([
-                transforms.Resize((224, 224)),
-                transforms.ToTensor(),
-                transforms.Normalize(mean=(0.485, 0.456, 0.406),
-                                     std=(0.229, 0.224, 0.225)),
-            ])
-            input_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+            # Add TTA toggle
+            use_tta = st.checkbox("Use TTA (Test Time Augmentation)", value=True)
 
-            with torch.no_grad():
-                output = model(input_tensor)
-                probabilities = torch.nn.functional.softmax(output[0], dim=0)
-                predicted_class = probabilities.argmax().item()
-                confidence = probabilities[predicted_class].item()
+            # Add threshold slider
+            threshold = st.slider(
+                "Decision Threshold for Pedestrian",
+                min_value=0.1,
+                max_value=1,
+                value=0.5,
+                step=0.05,
+                help="Higher threshold = more conservative pedestrian detection"
+            )
+
+            if predict_btn:
+                image = Image.open(uploaded_file).convert("RGB")
+                preprocess = transforms.Compose([
+                    transforms.Resize((224, 224)),
+                    transforms.ToTensor(),
+                    transforms.Normalize(mean=(0.485, 0.456, 0.406),
+                                         std=(0.229, 0.224, 0.225)),
+                ])
+                input_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+
+                with torch.no_grad():
+                    if use_tta:
+                        # TTA: original + horizontal flip
+                        logits_original = model(input_tensor)
+                        logits_flip = model(torch.flip(input_tensor, dims=[3]))
+                        output = (logits_original + logits_flip) / 2.0
+                    else:
+                        output = model(input_tensor)
+
+                    probabilities = torch.nn.functional.softmax(output[0], dim=0)
+                    predicted_class = probabilities.argmax().item()
+                    confidence = probabilities[predicted_class].item()
+
+                    # Get pedestrian probability for threshold-based decision
+                    pedestrian_prob = probabilities[1].item()  # assuming class 1 is pedestrian
+                    is_pedestrian = pedestrian_prob > threshold
 
             caption_text = "🚨 Pedestrian has been detected from the files uploaded!"
             subject_text = "AAI3001 Image Classification Alert"
@@ -281,9 +358,10 @@ def main():
             st.subheader("Uploaded Image")
             st.image(image, caption='Uploaded Image', use_container_width=True)
         with col3:
-            st.subheader("Prediction")
-            st.write(f"**Predicted Class:** {class_names[predicted_class]}")
-            st.write(f"**Confidence:** {confidence:.2%}")
+            st.subheader("Prediction Results")
+            st.write(f"**Predicted Class**: {class_names[predicted_class]}")
+            st.write(f"**Confidence**: {confidence:.3f}")
+            st.write(f"**TTA Used**: {'Yes' if use_tta else 'No'}")
 
     # Visual separator
     st.markdown("<hr>", unsafe_allow_html=True)
@@ -291,21 +369,38 @@ def main():
     # >>>>>>> NEW blue subheading above the Run Model button
     st.markdown('<div class="section-title-blue">View Examples (Best Resnet Model)</div>', unsafe_allow_html=True)
 
+    optimal_threshold = st.number_input(
+        "Set Optimal Threshold for Pedestrian Class (for TTA):",
+        min_value=0.0, max_value=1.0, value=0.3
+    )
+
     # ── Validation examples block ──────────────────────────────────────────────
-    if "model_results" not in st.session_state:
+    if "model_results" not in st.session_state:  # Optimal threshold determined from prior analysis
         st.session_state.model_results = None
     col1, col2 = st.columns([1, 3])
     with col1:
         if st.button("🚀 Run Model", type="primary"):
             with st.spinner("Running model on validation data..."):
-                collected_examples = get_model_predictions(model, val_loader, class_names)
+                collected_examples = get_model_predictions(
+    model, val_loader, class_names,
+    samples_per_class=3,
+    device=DEVICE,
+    use_tta=True,
+    threshold=optimal_threshold
+)
                 st.session_state.model_results = collected_examples
             st.rerun()
     with col2:
         if st.session_state.model_results is not None:
             if st.button("🔄 Refresh Examples"):
                 with st.spinner("Getting new examples..."):
-                    collected_examples = get_model_predictions(model, val_loader, class_names)
+                    collected_examples = get_model_predictions(
+    model, val_loader, class_names,
+    samples_per_class=3,
+    device=DEVICE,
+    use_tta=True,
+    threshold=optimal_threshold
+)
                     st.session_state.model_results = collected_examples
                 st.rerun()
     if st.session_state.model_results is not None:
