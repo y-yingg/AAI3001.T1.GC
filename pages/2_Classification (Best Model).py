@@ -15,13 +15,14 @@ import smtplib
 from email.message import EmailMessage
 from typing import Optional
 
-
+# -----------------------------
+# Config
+# -----------------------------
 DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-CLASS_NAMES = ["no pedestrian", "pedestrian"]
-CLASS_TO_IDX = {name: i for i, name in enumerate(CLASS_NAMES)}
 IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 VAL_DIR   = Path("data/validation")
 VAL_CSV   = VAL_DIR / "labels.csv"
+MODEL_PATH = "models/best_resnet18_pedestrian.pt"   # <- Best model here
 
 DATALOADER_KW = dict(
     num_workers=0,
@@ -31,9 +32,24 @@ DATALOADER_KW = dict(
 
 # ---------- Email (Gmail) config ----------
 SENDER_EMAIL = "sitprojects2024@gmail.com"
-SENDER_APP_PASSWORD = "hglikztdmngldhvf"  # Gmail app password
+SENDER_APP_PASSWORD = "hglikztdmngldhvf"
 
-# ---------- Telegram helpers ----------
+# ---------- Page CSS ----------
+st.markdown("""
+<style>
+.section-title-blue{
+  color:#2d6cdf;
+  font-weight:700;
+  font-size:1.15rem;
+  margin: 6px 0 10px 0;
+}
+hr{border-color:rgba(255,255,255,0.12);}
+</style>
+""", unsafe_allow_html=True)
+
+# -----------------------------
+# Telegram helpers
+# -----------------------------
 def send_telegram_message(bot_token: str, chat_id: str, message: str):
     try:
         url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
@@ -41,68 +57,46 @@ def send_telegram_message(bot_token: str, chat_id: str, message: str):
         requests.post(url, data=payload, timeout=15)
         return True
     except Exception:
-        return False  # fail silently
+        return False
 
 def send_telegram_photo(bot_token: str, chat_id: str, caption: str, image: Image.Image):
-    """
-    Try to send photo if under 5 MB.
-    If too large or fails (timeout/error), fallback to text-only message with apology.
-    """
     apology_msg = caption + " Sorry, the file size is too large for telegram so it could not be send here."
     try:
         import sys
         buf = io.BytesIO()
-        image.save(buf, format="JPEG", quality=85)  # smaller than PNG
+        image.save(buf, format="JPEG", quality=85)
         buf.seek(0)
-
         size_bytes = sys.getsizeof(buf.getvalue())
-        max_size = 5 * 1024 * 1024  # 5 MB
-
+        max_size = 5 * 1024 * 1024
         if size_bytes > max_size:
             send_telegram_message(bot_token, chat_id, apology_msg)
             return True
-
         url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
         data = {"chat_id": chat_id, "caption": caption}
         files = {"photo": ("image.jpg", buf, "image/jpeg")}
         resp = requests.post(url, data=data, files=files, timeout=30)
-
         if resp.status_code != 200:
-            # fallback if Telegram rejects
             send_telegram_message(bot_token, chat_id, apology_msg)
         return True
     except Exception:
-        # fallback if request fails (timeout, network, etc.)
         send_telegram_message(bot_token, chat_id, apology_msg)
         return True
 
-# ---------- Email helpers ----------
-def send_email_alert(
-    to_email: str,
-    subject: str,
-    body: str,
-    image: Optional[Image.Image],
-    attach_image: bool
-) -> bool:
-    """
-    Sends an email via Gmail SMTP. If attach_image=True and image provided,
-    attaches the image (no size/memory limit checks here).
-    """
+# -----------------------------
+# Email helpers
+# -----------------------------
+def send_email_alert(to_email: str, subject: str, body: str, image: Optional[Image.Image], attach_image: bool) -> bool:
     try:
         msg = EmailMessage()
         msg["From"] = SENDER_EMAIL
         msg["To"] = to_email
         msg["Subject"] = subject
         msg.set_content(body)
-
         if attach_image and image is not None:
             buf = io.BytesIO()
             image.save(buf, format="JPEG", quality=90)
             img_bytes = buf.getvalue()
-            msg.add_attachment(
-                img_bytes, maintype="image", subtype="jpeg", filename="detected.jpg"
-            )
-
+            msg.add_attachment(img_bytes, maintype="image", subtype="jpeg", filename="detected.jpg")
         with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
             smtp.login(SENDER_EMAIL, SENDER_APP_PASSWORD)
             smtp.send_message(msg)
@@ -111,10 +105,12 @@ def send_email_alert(
         print(f"Email error: {e}")
     return False
 
-
 def label_is_pedestrian(label_text: str) -> bool:
     return "pedestrian" in label_text.lower()
 
+# -----------------------------
+# Inference helpers
+# -----------------------------
 def get_model_predictions(model, val_loader, class_names, samples_per_class=3):
     model.eval()
     collected = {cls: [] for cls in range(len(class_names))}
@@ -145,7 +141,6 @@ def display_classification_examples(collected_examples, model, class_names, samp
                 with cols[col_idx]:
                     pil_img = denormalize(img)
                     st.image(pil_img, use_container_width=True)
-                   # st.image(pil_img, use_column_width=True)
                     true_label = class_names[label.item()] if label.item() < len(class_names) else f"Class {label.item()}"
                     pred_label = class_names[pred.item()] if pred.item() < len(class_names) else f"Class {pred.item()}"
                     is_correct = pred == label
@@ -158,23 +153,24 @@ def display_classification_examples(collected_examples, model, class_names, samp
                         confidence = torch.nn.functional.softmax(output[0], dim=0)[pred].item()
                     st.write(f"**Confidence:** {confidence:.2%}")
 
+@st.cache_resource
+def load_model(path):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    checkpoint = torch.load(path, map_location=device)
+    model = resnet18(weights=None)
+    in_features = model.fc.in_features
+    model.fc = nn.Linear(in_features, 2)
+    model.load_state_dict(checkpoint["model"])
+    model = model.to(DEVICE)
+    class_names = checkpoint.get("class_names", ["no pedestrian", "pedestrian"])
+    return model, class_names
+
 def main():
-    st.set_page_config(page_title="Image Classification Demo", page_icon="🖼️", layout="wide")
-    st.title("🖼️ Image Classification Demo")
+    st.set_page_config(page_title="Classification (Best Resnet Model)", page_icon="🖼️", layout="wide")
+    st.title("Classification (Best Resnet Model)")
 
-    @st.cache_resource
-    def load_model(path):
-        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-        checkpoint = torch.load(path, map_location=device)
-        model = resnet18(weights=None)
-        in_features = model.fc.in_features
-        model.fc = nn.Linear(in_features, 2)
-        model.load_state_dict(checkpoint["model"])
-        model = model.to(DEVICE)
-        return model, checkpoint
-
-    model, checkpoint = load_model('models/best_resnet18_pedestrian.pt')
-    CLASS_NAMES = checkpoint.get("class_names", ["no pedestrian", "pedestrian"])
+    # Load model + data
+    model, class_names = load_model(MODEL_PATH)
 
     val_tfms = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -184,40 +180,40 @@ def main():
     val_ds = CsvImageDataset(VAL_DIR, VAL_CSV, transform=val_tfms)
     val_loader = DataLoader(val_ds, batch_size=32, shuffle=False, **DATALOADER_KW)
 
+    # ── Single-image demo + alerts ─────────────────────────────────────────────
     col1, col2, col3 = st.columns(3)
     with col1:
         st.write("Upload an image and let our AI model classify it!")
         uploaded_file = st.file_uploader("Choose an image...", type=IMG_EXT)
 
-        # 1) Top-level: notify or not
         notify_choice = st.radio(
             "Do you want to be notified if a pedestrian is detected?",
             ["No", "Yes"], index=0
         )
 
-        # Defaults
         send_photo_choice = "No"
         bot_token = chat_id = None
         to_email = None
         notify_channel = None
 
         if notify_choice == "Yes":
-            # 2) Channel selector
             notify_channel = st.radio(
                 "How would you like to be notified?",
                 ["Telegram", "Email", "Both"],
                 index=0
             )
-
-            # 3) Inputs per channel
             if notify_channel in ("Telegram", "Both"):
                 bot_token = st.text_input("Telegram Bot Token", type="password")
                 chat_id = st.text_input("Telegram Chat ID")
-
+                st.markdown(
+                    '<p style="font-size:0.85rem;color:#9aa0a6;font-style:italic;margin-top:-4px;">'
+                    'Please view the <strong>Telegram Help</strong> tab if you are unsure how to get your Telegram Bot Token & Chat ID.'
+                    '</p>',
+                    unsafe_allow_html=True
+                )
             if notify_channel in ("Email", "Both"):
                 to_email = st.text_input("Notification Email Address")
 
-            # 4) Always show send-file choice for all channels
             send_photo_choice = st.radio(
                 "Do you want the detected file to be sent along with the message?",
                 ["No", "Yes"],
@@ -229,6 +225,7 @@ def main():
 
     if uploaded_file:
         predict_btn = st.button("Predict Image")
+
         if predict_btn:
             image = Image.open(uploaded_file).convert("RGB")
             preprocess = transforms.Compose([
@@ -239,37 +236,27 @@ def main():
             ])
             input_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
 
-            if 'resnet_model' not in locals():
-                resnet_model, _ = load_model('models/resnet18_pedestrian.pt')
-
             with torch.no_grad():
                 output = model(input_tensor)
                 probabilities = torch.nn.functional.softmax(output[0], dim=0)
                 predicted_class = probabilities.argmax().item()
                 confidence = probabilities[predicted_class].item()
 
-            # ---------- Alert logic ----------
             caption_text = "🚨 Pedestrian has been detected from the files uploaded!"
             subject_text = "AAI3001 Image Classification Alert"
             attach_image = (send_photo_choice == "Yes")
 
             if notify_choice == "Yes":
-                pred_label_text = CLASS_NAMES[predicted_class] if predicted_class < len(CLASS_NAMES) else f"class_{predicted_class}"
+                pred_label_text = class_names[predicted_class] if predicted_class < len(class_names) else f"class_{predicted_class}"
                 if label_is_pedestrian(pred_label_text):
                     any_sent = False
-
-                    # Telegram path
                     if notify_channel in ("Telegram", "Both"):
                         if not bot_token or not chat_id:
                             st.info("Telegram selected but Bot Token/Chat ID missing. Skipped Telegram.")
                         else:
-                            if attach_image:
-                                ok = send_telegram_photo(bot_token, chat_id, caption_text, image)
-                            else:
-                                ok = send_telegram_message(bot_token, chat_id, caption_text)
+                            ok = send_telegram_photo(bot_token, chat_id, caption_text, image) if attach_image \
+                                 else send_telegram_message(bot_token, chat_id, caption_text)
                             any_sent = ok or any_sent
-
-                    # Email path
                     if notify_channel in ("Email", "Both"):
                         if not to_email:
                             st.info("Email selected but recipient address is missing. Skipped Email.")
@@ -282,7 +269,6 @@ def main():
                                 attach_image=attach_image
                             )
                             any_sent = ok or any_sent
-
                     if any_sent:
                         st.success("Alert sent.")
                     else:
@@ -294,33 +280,36 @@ def main():
         with col2:
             st.subheader("Uploaded Image")
             st.image(image, caption='Uploaded Image', use_container_width=True)
-            #st.image(image, caption='Uploaded Image', use_column_width=True)
         with col3:
             st.subheader("Prediction")
-            st.write(f"**Predicted Class:** {CLASS_NAMES[predicted_class]}")
+            st.write(f"**Predicted Class:** {class_names[predicted_class]}")
             st.write(f"**Confidence:** {confidence:.2%}")
 
-    # st.markdown("---")
-    
-    # Validation demo
+    # Visual separator
+    st.markdown("<hr>", unsafe_allow_html=True)
+
+    # >>>>>>> NEW blue subheading above the Run Model button
+    st.markdown('<div class="section-title-blue">View Examples (Best Resnet Model)</div>', unsafe_allow_html=True)
+
+    # ── Validation examples block ──────────────────────────────────────────────
     if "model_results" not in st.session_state:
         st.session_state.model_results = None
     col1, col2 = st.columns([1, 3])
     with col1:
         if st.button("🚀 Run Model", type="primary"):
             with st.spinner("Running model on validation data..."):
-                collected_examples = get_model_predictions(model, val_loader, CLASS_NAMES)
+                collected_examples = get_model_predictions(model, val_loader, class_names)
                 st.session_state.model_results = collected_examples
             st.rerun()
     with col2:
         if st.session_state.model_results is not None:
             if st.button("🔄 Refresh Examples"):
                 with st.spinner("Getting new examples..."):
-                    collected_examples = get_model_predictions(model, val_loader, CLASS_NAMES)
+                    collected_examples = get_model_predictions(model, val_loader, class_names)
                     st.session_state.model_results = collected_examples
                 st.rerun()
     if st.session_state.model_results is not None:
-        display_classification_examples(st.session_state.model_results, model, CLASS_NAMES)
+        display_classification_examples(st.session_state.model_results, model, class_names)
     else:
         st.info("Click 'Run Model' to see classification examples!")
     st.markdown("---")
