@@ -26,13 +26,14 @@ DEVICE = torch.device(
     "mps" if torch.backends.mps.is_available() else
     "cpu"
 )
+IMG_EXT = {".jpg", ".jpeg", ".png", ".bmp", ".gif", ".webp"}
 CLASS_NAMES = ["no pedestrian", "pedestrian"]
 CLASS_TO_IDX = {name: i for i, name in enumerate(CLASS_NAMES)}
 # index 0 -> no pedestrian, 1 -> pedestrian
 def main():
 
     st.set_page_config(
-        page_title="Saliency Maps",
+        page_title="Saliency Maps (Using Best Model)",
         page_icon="🧠",
         layout="wide",
         initial_sidebar_state="expanded"
@@ -44,6 +45,9 @@ def main():
 
     model, checkpoint = load_model(MODEL_PATH)
     random_images = get_random_images(10)
+    uploaded_file = st.file_uploader("Upload an image...", type=IMG_EXT)
+
+    img = None
     if st.button("Get New Random Images"):
         get_random_images.clear()
         st.rerun()
@@ -55,10 +59,24 @@ def main():
 
     if selected_img_path:
         img = Image.open(selected_img_path).convert("RGB")
-        st.image(img, caption="Selected Image", use_container_width=True)
 
+    if uploaded_file:
+        img = Image.open(uploaded_file).convert("RGB")
+
+
+    if img:
+        st.image(img, caption="Selected Image", use_container_width=True)
+        use_tta = st.checkbox("Use TTA (Test Time Augmentation)", value=True)
+        threshold = st.slider(
+            "Decision Threshold for Pedestrian",
+            min_value=0.1,
+            max_value=1.0,
+            value=0.5,
+            step=0.05,
+            help="Higher threshold = more conservative pedestrian detection"
+        )
         if st.button("Show Saliency Map"):
-            show_image_with_saliency(model, img, true_label=label)
+            show_image_with_saliency(model, img, true_label=label, use_tta=use_tta, threshold=threshold)
 
         if st.button("Run Occlusion Analysis"):
             with st.spinner("Performing occlusion analysis..."):
@@ -79,7 +97,7 @@ def main():
                     model=model,  # Your model here
                     image=input_tensor,
                     true_label=label,
-                    mask_size=16,
+                    mask_size=32,
                     stride=8
                 )
 
@@ -112,7 +130,7 @@ def get_random_images(num_images=10):
     return random_images
 
 
-def generate_saliency_map(model, img, true_label=None):
+def generate_saliency_map(model, img, true_label=None, use_tta=False, threshold=0.5, pedestrian_class_idx=1):
     """
     Generate saliency map for a given image and model using gradient-based method
 
@@ -120,9 +138,14 @@ def generate_saliency_map(model, img, true_label=None):
     - model: Your trained PyTorch model
     - img: Input image (PIL image)
     - true_label: True label or target class for explanation
+    - use_tta: Whether to use Test Time Augmentation
+    - threshold: Decision threshold for pedestrian class
+    - pedestrian_class_idx: Index of pedestrian class (default=1)
 
     Returns:
-    - tuple: (saliency_map, predicted_class, confidence)
+    - tuple: (saliency_map, predicted_class, confidence, is_pedestrian, pedestrian_prob)
+              - First 3 values maintain backward compatibility
+              - Additional values for threshold-based decision
     """
     preprocess = transforms.Compose([
         transforms.Resize((224, 224)),
@@ -136,33 +159,54 @@ def generate_saliency_map(model, img, true_label=None):
     # Set model to evaluation mode
     model.eval()
 
-    # Ensure img requires gradients
+    # For prediction (with optional TTA and threshold)
+    with torch.no_grad():
+        if use_tta:
+            # TTA: original + horizontal flip
+            logits_original = model(img_tensor)
+            logits_flip = model(torch.flip(img_tensor, dims=[3]))
+            predictions_tta = (logits_original + logits_flip) / 2.0
+            probabilities = torch.nn.functional.softmax(predictions_tta[0], dim=0)
+        else:
+            predictions = model(img_tensor)
+            probabilities = torch.nn.functional.softmax(predictions[0], dim=0)
+
+        # Get pedestrian probability and threshold-based decision
+        pedestrian_prob = probabilities[pedestrian_class_idx].item()
+        is_pedestrian = pedestrian_prob > threshold
+
+        # Determine final predicted class
+        if threshold != 0.5:  # Only override if using custom threshold
+            predicted_class = pedestrian_class_idx if is_pedestrian else (1 - pedestrian_class_idx)
+            confidence = probabilities[predicted_class].item()
+        else:
+            # Standard argmax
+            predicted_class = torch.argmax(probabilities).item()
+            confidence = probabilities[predicted_class].item()
+
+    # For saliency computation (always on original image for interpretability)
     img_tensor.requires_grad_()
+    with torch.enable_grad():
+        predictions_saliency = model(img_tensor)
+        probabilities_saliency = torch.nn.functional.softmax(predictions_saliency[0], dim=0)
 
-    # Forward pass with gradient tracking
-    with torch.enable_grad():  # Ensure gradients are enabled
-        predictions = model(img_tensor)
-
-        # Calculate predicted class and confidence
-        probabilities = torch.nn.functional.softmax(predictions[0], dim=0)
-        predicted_class = torch.argmax(probabilities).item()
-        confidence = probabilities[predicted_class].item()
-
-        # Use true_label if provided, otherwise use predicted class
+        # Use the final predicted class for saliency (respects threshold decision)
         if true_label is not None:
             # Convert string label to integer index if needed
             if isinstance(true_label, str):
                 true_label = CLASS_NAMES.index(true_label)
-            target_class = torch.tensor([true_label], device=predictions.device)
+            target_class = torch.tensor([true_label], device=predictions_saliency.device)
         else:
-            target_class = torch.tensor([predicted_class], device=predictions.device)
+            target_class = torch.tensor([predicted_class], device=predictions_saliency.device)
 
         # Use gather to maintain gradient flow
-        class_score = predictions.gather(1, target_class.unsqueeze(1)).squeeze(1)
+        class_score = predictions_saliency.gather(1, target_class.unsqueeze(1)).squeeze(1)
         class_score = class_score[0]
 
         # Zero out any existing gradients
         model.zero_grad()
+        if img_tensor.grad is not None:
+            img_tensor.grad.zero_()
 
         # Backward pass to compute gradients
         class_score.backward()
@@ -185,15 +229,18 @@ def generate_saliency_map(model, img, true_label=None):
         else:
             saliency_map = torch.zeros_like(saliency_map)
 
-    return saliency_map.detach().cpu().numpy(), predicted_class, confidence
+    # Return tuple: maintain backward compatibility + new values
+    return (saliency_map.detach().cpu().numpy(),
+            predicted_class,
+            confidence)
 
 
-def show_image_with_saliency(model, img, true_label=None):
+def show_image_with_saliency(model, img, true_label=None, use_tta=False, threshold=0.5):
     """
     Display original image with saliency map overlay
     """
     # Generate saliency map with predictions
-    saliency_map, predicted_class, confidence = generate_saliency_map(model, img, true_label)
+    saliency_map, predicted_class, confidence = generate_saliency_map(model, img, true_label, use_tta, threshold)
 
     # Convert PIL image to numpy array and resize to match saliency map
     img_resized = img.resize((224, 224))

@@ -132,7 +132,6 @@ def get_model_predictions(model, val_loader, class_names, samples_per_class=3, d
 
     Returns:
         Dictionary with class indices as keys and lists of (image_tensor, true_label, prediction) tuples
-        EXACTLY the same structure as original: {class_idx: [(img, label, pred), ...]}
     """
     if device is None:
         device = next(model.parameters()).device
@@ -369,9 +368,13 @@ def main():
     # >>>>>>> NEW blue subheading above the Run Model button
     st.markdown('<div class="section-title-blue">View Examples (Best Resnet Model)</div>', unsafe_allow_html=True)
 
-    optimal_threshold = st.number_input(
-        "Set Optimal Threshold for Pedestrian Class (for TTA):",
-        min_value=0.0, max_value=1.0, value=0.3
+    optimal_threshold = st.slider(
+        "Decision Threshold for Pedestrian",
+        min_value=0.1,
+        max_value=1,
+        value=0.5,
+        step=0.05,
+        help="Higher threshold = more conservative pedestrian detection"
     )
 
     # ── Validation examples block ──────────────────────────────────────────────
