@@ -124,6 +124,9 @@ def main():
             <li>Exploring ensemble models or object detection approaches.</li>
             <li>Integrating real-time video pipeline for live monitoring.</li>
           </ul>
+          <p>
+            Training pre-train model with strong augmentations and fine-tuning can cause the model to not perform well in unfamiliar data
+          </p>
         </div>
         """, unsafe_allow_html=True)
 
