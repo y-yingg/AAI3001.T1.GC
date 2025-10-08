@@ -286,9 +286,10 @@ def main():
                 "Decision Threshold for Pedestrian",
                 min_value=0.1,
                 max_value=1.0,
-                value=0.3,
+                value=0.5,
                 step=0.05,
-                help="Higher threshold = more conservative pedestrian detection"
+                help="Higher threshold = more conservative pedestrian detection",
+                key="threshold1"
             )
 
             if predict_btn:
@@ -299,24 +300,31 @@ def main():
                     transforms.Normalize(mean=(0.485, 0.456, 0.406),
                                          std=(0.229, 0.224, 0.225)),
                 ])
-                input_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
-
+                img_tensor = preprocess(image).unsqueeze(0).to(DEVICE)
+                pedestrian_class_idx = 1
                 with torch.no_grad():
                     if use_tta:
                         # TTA: original + horizontal flip
-                        logits_original = model(input_tensor)
-                        logits_flip = model(torch.flip(input_tensor, dims=[3]))
-                        output = (logits_original + logits_flip) / 2.0
+                        logits_original = model(img_tensor)
+                        logits_flip = model(torch.flip(img_tensor, dims=[3]))
+                        predictions_tta = (logits_original + logits_flip) / 2.0
+                        probabilities = torch.nn.functional.softmax(predictions_tta[0], dim=0)
                     else:
-                        output = model(input_tensor)
+                        predictions = model(img_tensor)
+                        probabilities = torch.nn.functional.softmax(predictions[0], dim=0)
 
-                    probabilities = torch.nn.functional.softmax(output[0], dim=0)
-                    predicted_class = probabilities.argmax().item()
-                    confidence = probabilities[predicted_class].item()
-
-                    # Get pedestrian probability for threshold-based decision
-                    pedestrian_prob = probabilities[1].item()  # assuming class 1 is pedestrian
+                    # Get pedestrian probability and threshold-based decision
+                    pedestrian_prob = probabilities[pedestrian_class_idx].item()
                     is_pedestrian = pedestrian_prob > threshold
+
+                    # Determine final predicted class
+                    if threshold != 0.5:  # Only override if using custom threshold
+                        predicted_class = pedestrian_class_idx if is_pedestrian else (1 - pedestrian_class_idx)
+                        confidence = probabilities[predicted_class].item()
+                    else:
+                        # Standard argmax
+                        predicted_class = torch.argmax(probabilities).item()
+                        confidence = probabilities[predicted_class].item()
 
             caption_text = "🚨 Pedestrian has been detected from the files uploaded!"
             subject_text = "AAI3001 Image Classification Alert"
