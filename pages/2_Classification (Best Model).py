@@ -285,8 +285,8 @@ def main():
             threshold = st.slider(
                 "Decision Threshold for Pedestrian",
                 min_value=0.1,
-                max_value=1,
-                value=0.5,
+                max_value=1.0,
+                value=0.3,
                 step=0.05,
                 help="Higher threshold = more conservative pedestrian detection"
             )
