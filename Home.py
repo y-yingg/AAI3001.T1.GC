@@ -10,7 +10,7 @@ def main():
         background-color: #0e1117;
       }
       .main-title {
-        font-size: 2.4rem;
+        font-size: 2.2rem;
         font-weight: 800;
         color: #2d6cdf;
         text-align: center;
@@ -43,142 +43,99 @@ def main():
         font-size: 1.05rem;
         margin-bottom: 0.8em;
       }
+      .dataset-link a {
+        color: #79b8ff;
+        text-decoration: none;
+        font-weight: 500;
+      }
+      .dataset-link a:hover {
+        text-decoration: underline;
+      }
       ul {
         margin-left: 1.4em;
       }
       li {
         margin-bottom: 0.5em;
       }
-      .term-tag {
-        display: inline-block;
-        padding: 4px 10px;
-        border-radius: 999px;
-        font-size: 0.85rem;
-        font-weight: 600;
-        margin-bottom: 10px;
-      }
-      .term1 {
-        background-color: rgba(45,108,223,0.15);
-        color: #9ab6ff;
-        border: 1px solid #2d6cdf;
-      }
-      .term2 {
-        background-color: rgba(255,217,102,0.12);
-        color: #ffe69a;
-        border: 1px solid #ffd966;
-      }
     </style>
     """, unsafe_allow_html=True)
 
-    # ---------- Header ----------
-    st.markdown(
-        "<div class='main-title'>Pedestrian Detection Projects - Term 1 vs Term 2</div>",
-        unsafe_allow_html=True,
-    )
-    st.markdown(
-        "<div class='subtitle'>Team 11 · AAI3001 - Deep Learning and Computer Vision</div>",
-        unsafe_allow_html=True,
-    )
+    # ---------- Content ----------
+    st.markdown("<div class='main-title'>Pedestrian Detection Alert System</div>", unsafe_allow_html=True)
+    st.markdown("<div class='subtitle'>Team 11 · AAI3001 — Deep Learning and Computer Vision (Tri 1, 2024)</div>", unsafe_allow_html=True)
 
-    # ---------- Two-column comparison ----------
     col1, col2 = st.columns([1, 1])
 
-    # ----- TERM 1 -----
     with col1:
         st.markdown("""
         <div class="section">
-          <span class="term-tag term1">Term 1 · Classification</span>
-          <div class="section-title">Pedestrian Detection Alert System</div>
+          <div class="section-title">Project Overview</div>
           <p>
-            In Term 1, our focus was on <strong>image-level pedestrian detection</strong>. 
-            The system takes in a single image and predicts whether a pedestrian is present 
-            or not, acting as an early screening step for monitored or restricted areas.
+            The <strong>Pedestrian Detection Alert System</strong> is an AI-based solution designed to detect pedestrians in images and trigger alerts when pedestrians are present in restricted or monitored areas.
           </p>
           <p>
-            We fine-tuned a <strong>ResNet-18</strong> model using transfer learning and 
-            data augmentation to handle varied lighting, backgrounds and viewpoints, 
-            despite having a relatively small dataset.
+            Using a <strong>fine-tuned ResNet-18 model</strong>, the system classifies images as either containing pedestrians or not. 
+            This model leverages <strong>transfer learning</strong> and <strong>data augmentation</strong> techniques to achieve high accuracy, even with limited training data.
           </p>
           <p>
-            The project also explored how model predictions could be integrated with 
-            <strong>alert mechanisms</strong> (e.g. Telegram / email notifications) 
-            to support real-time safety workflows.
+            The project aims to enhance public and urban safety by supporting real-time monitoring and automated alert notifications through Telegram and Email.
           </p>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("""
         <div class="section">
-          <div class="section-title">Term 1 – Key Points</div>
+          <div class="section-title">Objectives</div>
           <ul>
-            <li>Binary <strong>image classification</strong>: pedestrian vs non-pedestrian.</li>
-            <li>Fine-tuned <strong>ResNet-18</strong> with transfer learning.</li>
-            <li>Used data augmentation to improve generalisation.</li>
-            <li>Prototype design for <strong>alert pipeline</strong> (messaging / email).</li>
-            <li>Main outcome: a solid baseline for pedestrian presence detection.</li>
+            <li>Develop an image classification model to detect pedestrian presence.</li>
+            <li>Use fine-tuning techniques to improve performance on a small dataset.</li>
+            <li>Integrate real-time alert features through messaging and email APIs.</li>
+            <li>Evaluate and compare base and fine-tuned ResNet18 performance.</li>
           </ul>
         </div>
         """, unsafe_allow_html=True)
 
-    # ----- TERM 2 -----
     with col2:
         st.markdown("""
         <div class="section">
-          <span class="term-tag term2">Term 2 · Object Detection</span>
-          <div class="section-title">Pedestrian Detection - Object Detection Extension</div>
-          <p>
-            In Term 2, we extended the original idea from “Is there a pedestrian?” to 
-            <strong>“Where are the riders and what are they riding?”</strong>. 
-            Instead of a single label per image, the model now predicts 
-            <strong>bounding boxes and classes</strong> for multiple objects.
-          </p>
-          <p>
-            We trained a <strong>RetinaNet (ResNet-50 FPN backbone)</strong> model 
-            on a COCO-style dataset with three rider classes:
-          </p>
-          <ul>
-            <li>Person riding bicycle</li>
-            <li>Person riding kickboard</li>
-            <li>Person riding motorcycle</li>
-          </ul>
-          <p>
-            The detector is deployed as an interactive web demo where users can upload 
-            images and see visualised bounding boxes and class labels.
+          <div class="section-title">Datasets & References</div>
+          <p>Our model was trained using publicly available pedestrian datasets:</p>
+          <p class="dataset-link">
+            <a href="https://www.kaggle.com/datasets/mohamedgobara/26-class-object-detection-dataset/data" target="_blank">• 26-Class Object Detection Dataset (Kaggle)</a><br>
+            <a href="https://www.kaggle.com/datasets/tejasvdante/pedestrian-no-pedestrian" target="_blank">• Pedestrian vs Non-Pedestrian Dataset (Kaggle)</a>
           </p>
         </div>
         """, unsafe_allow_html=True)
 
         st.markdown("""
         <div class="section">
-          <div class="section-title">Term 2 – Key Points</div>
+          <div class="section-title">Key Findings & Insights</div>
+          <p>
+            The <strong>fine-tuned ResNet-18 model</strong> demonstrated strong classification capability with high validation accuracy and F1-scores, reliably distinguishing pedestrian and non-pedestrian images.
+          </p>
+          <p>
+            <strong>Key insight:</strong> transfer learning combined with data augmentation enables robust performance even with a smaller dataset, improving generalisation significantly.
+          </p>
+          <p>
+            However, slightly lower recall for pedestrian images suggests potential areas for improvement through:
+          </p>
           <ul>
-            <li>Shift from <strong>classification</strong> to full <strong>object detection</strong>.</li>
-            <li>Model: <strong>RetinaNet</strong> with ResNet-50 FPN backbone.</li>
-            <li>COCO-style dataset with 3 rider-related classes.</li>
-            <li>Pre-processing with resizing, normalisation and augmentation.</li>
-            <li>Deployed via <strong>Streamlit</strong> + model hosted on Hugging Face.</li>
+            <li>Increasing dataset size and diversity (e.g., crowded or low-light conditions).</li>
+            <li>Exploring ensemble models or object detection approaches.</li>
+            <li>Integrating real-time video pipeline for live monitoring.</li>
           </ul>
+          <p>
+            Training pre-train model with strong augmentations and fine-tuning can cause the model to not perform well in unfamiliar data
+          </p>
         </div>
         """, unsafe_allow_html=True)
 
-    # ---------- Connection / Overall summary ----------
     st.markdown("""
     <div class="section">
-      <div class="section-title">How Term 1 and Term 2 Fit Together</div>
+      <div class="section-title">Conclusion</div>
       <p>
-        Together, the two projects form a <strong>progressive pipeline</strong>:
-      </p>
-      <ul>
-        <li><strong>Term 1</strong> builds the foundation with image-level classification and 
-            explores how deep learning can support a Pedestrian Detection Alert System.</li>
-        <li><strong>Term 2</strong> advances this by locating specific rider categories with 
-            bounding boxes, making the outputs more useful for monitoring, analytics and 
-            potential integration with smart city infrastructure.</li>
-      </ul>
-      <p>
-        The work in Term 2 reuses the lessons learnt in Term 1 about dataset quality, 
-        augmentation and deployment, and pushes the project closer towards a realistic, 
-        end-to-end solution for urban safety and surveillance use cases.
+        Overall, this project provides a solid foundation for reliable, AI-driven pedestrian detection. 
+        The system demonstrates the real-world potential of deep learning in public safety monitoring and can be further enhanced for large-scale deployment in smart city infrastructure.
       </p>
     </div>
     """, unsafe_allow_html=True)
