@@ -16,7 +16,7 @@ import smtplib
 from email.message import EmailMessage
 from typing import Optional
 
-# -----------------------------
+# ----------------------------
 # Config
 # -----------------------------
 st.set_page_config(page_title="Classification (Best Resnet Model)", page_icon="🖼️", layout="wide")
