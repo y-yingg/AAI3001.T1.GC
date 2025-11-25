@@ -319,19 +319,35 @@ if uploaded_file:
     # resize to the same size used in training / validation
     image = image.resize((IMG_SIZE, IMG_SIZE))
 
-    c1, c2 = st.columns([1.2, 1])
+        # --- TOP SECTION: Annotated + CAM side-by-side ---
+    boxes, labels, scores = predict(image, score_threshold)
+    annotated, table = draw_detections(image, boxes, labels, scores)
+    cam_img = generate_cam_for_image(image, score_threshold)
+
+    c1, c2 = st.columns([1, 1])
     with c1:
         st.subheader("Model predictions")
-        boxes, labels, scores = predict(image, score_threshold)
-        annotated, table = draw_detections(image, boxes, labels, scores)
-        st.image(annotated, caption="Annotated output", width=500)
+        st.image(annotated, caption="Annotated output", use_column_width=True)
 
     with c2:
-        st.subheader("Detection details")
+        st.subheader("Grad-CAM visualization")
+        st.image(cam_img, caption="Grad-CAM", use_column_width=True)
+
+    # --- DETECTION DETAILS BELOW BOTH IMAGES ---
+    st.markdown("### Detection details")
+
+    # Create a narrower column (40% width)
+    col_table, _ = st.columns([0.4, 0.6])
+
+    with col_table:
         if table.empty:
             st.info("No detections above the selected threshold.")
         else:
-            st.dataframe(table, hide_index=True, use_container_width=True)
+            # normal sized table (no stretching)
+            st.dataframe(table, hide_index=True)
+
+
+
 
 else:
     st.info("Upload an image to start running inference.")
@@ -382,10 +398,21 @@ if st.session_state.det_examples:
             with cols[1]:
                 st.image(cam_img, caption="Grad-CAM visualization", use_column_width=True)
 
-            if df is None or df.empty:
-                st.caption("No detections above the selected threshold.")
-            else:
-                st.dataframe(df, hide_index=True, use_container_width=True)
+            # if df is None or df.empty:
+            #     st.caption("No detections above the selected threshold.")
+            # else:
+            #     st.dataframe(df, hide_index=True, use_container_width=True)
+
+            # Put the table in a narrower column (40% width)
+            col_table, _ = st.columns([0.4, 0.6])
+
+            with col_table:
+                st.markdown("#### Detection details")
+                if df is None or df.empty:
+                    st.caption("No detections above the selected threshold.")
+                else:
+                    st.dataframe(df, hide_index=True)   # no auto-stretch
+
 
         st.markdown("---")
 else:
