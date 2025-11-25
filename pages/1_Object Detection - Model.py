@@ -236,12 +236,12 @@ def generate_cam_for_image(pil_img: Image.Image, score_threshold: float = 0.5) -
             return img_resized
 
         # Overlay CAM on image. image_weight small -> heatmap very obvious.
-        grayscale_cam = 1.0 - grayscale_cam
+        grayscale_cam = 0.65 - grayscale_cam
         cam_image = show_cam_on_image(
             rgb_img,
             grayscale_cam,
-            use_rgb=True,
-            image_weight=0.15,   # 0.15 image + 0.85 heatmap
+            use_rgb=True
+            #image_weight=0.15,   # 0.15 image + 0.85 heatmap
         )
         cam_pil = Image.fromarray((cam_image * 255).astype(np.uint8))
 
