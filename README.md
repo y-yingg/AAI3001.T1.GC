@@ -42,12 +42,12 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 │  │  ├─ 📂 pedestrian/
 │  │  └─ labels.csv
 │  └─ 📂 validation/
-│     ├─ 📂 no pedestrianrain/
+│     ├─ 📂 no pedestrian/
 │     ├─ 📂 pedestrian/
 │     └─ labels.csv
 ├─ 📂 models/
-│  ├─ best_resnet18_pedestrian.pt
-│  └─ resnet18_pedestrian.pt
+│  ├─ best_resnet18_pedestrian.pt      # term 1 classification model
+│  └─ resnet18_pedestrian.pt      # term 1 classification model
 ├─ 📂 pages/
 │  ├─ 0_Object Detection - Project Detail.py
 │  ├─ 1_Object Detection - Model.py
