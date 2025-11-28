@@ -74,11 +74,11 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 
 
 Key modules include:  
-- **Classification (Base ResNet-18)** — `5_Classification - (Base Model).py` :contentReference[oaicite:0]{index=0}  
-- **Classification (Best ResNet-18 + TTA + threshold tuning)** — `4_Classification - (Best Model).py` :contentReference[oaicite:1]{index=1}  
-- **Object Detection (RetinaNet ResNet-50 FPN)** — `2_Object Detection Model.py` :contentReference[oaicite:2]{index=2}  
-- **Saliency maps (gradients + occlusion)** — `7_Classification - Saliency.py` :contentReference[oaicite:3]{index=3}  
-- **Model explanation pages** — `6_Classification - Models Explanations.py`, `Object Detection - Explanation` :contentReference[oaicite:4]{index=4}
+- **Classification (Base ResNet-18)** -`5_Classification - (Base Model).py` :contentReference[oaicite:0]{index=0}  
+- **Classification (Best ResNet-18 + TTA + threshold tuning)** -`4_Classification - (Best Model).py` :contentReference[oaicite:1]{index=1}  
+- **Object Detection (RetinaNet ResNet-50 FPN)** -`2_Object Detection Model.py` :contentReference[oaicite:2]{index=2}  
+- **Saliency maps (gradients + occlusion)** -`7_Classification - Saliency.py` :contentReference[oaicite:3]{index=3}  
+- **Model explanation pages** -`6_Classification - Models Explanations.py`, `Object Detection - Explanation` :contentReference[oaicite:4]{index=4}
 
 ---
 
