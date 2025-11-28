@@ -8,5 +8,7 @@
 
 ```streamlit run home.py```
 
-### **Running the web application on cloud**
-```https://aai3001-t1-521929210751.asia-southeast1.run.app/```
+
+Cloud-based Model Demo https://huggingface.co/spaces/y-yingg/pedestrian_detection-demo 
+Information Website: https://aai3001-t1-gc.onrender.com/
+Dataset: https://universe.roboflow.com/atech-witjl/pedestrian-kmhf3/dataset/3 
