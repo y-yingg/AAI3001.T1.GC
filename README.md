@@ -21,20 +21,52 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 | 🗂 **Dataset (Roboflow)** | https://universe.roboflow.com/atech-witjl/pedestrian-kmhf3/dataset/3 |
 
 ---
+## 🌐 Term 2 Object Detection Model .pth file
+| ☁️ **Model.pth** | https://huggingface.co/y-yingg/pedestrian_detection/tree/main | 
+---
 
 # 📁 Project Structure
 
 
 ```bash
-📦 AAI3001
-┣ 📂 models/
-┣ 📂 data/
-┣ 📂 data-object_detection/
-┣ 📂 pages/
-┣ 📜 Home.py
-┣ 📜 requirements.txt
-┣ 📜 utils.py
-┗ 📜 README.md
+📦 AAI3001/
+├─ 📂 data-object_detection/
+│  ├─ 📂 train/
+│  └─ 📂 validation/
+├─ 📂 data/
+│  ├─ 📂 train/
+│  │  ├─ 📂 no pedestrian/
+│  │  ├─ 📂 pedestrian/
+│  │  └─ labels.csv
+│  └─ 📂 validation/
+│     ├─ 📂 no pedestrianrain/
+│     ├─ 📂 pedestrian/
+│     └─ labels.csv
+├─ 📂 models/
+│  ├─ best_resnet18_pedestrian.pt
+│  └─ resnet18_pedestrian.pt
+├─ 📂 pages/
+│  ├─ 0_Object Detection - Project Detail.py
+│  ├─ 1_Object Detection - Model.py
+│  ├─ 2_Object Detection - Model Explanations.py
+│  ├─ 3_Classification - Project Detail.py
+│  ├─ 4_Classification - (Best Model).py
+│  ├─ 5_Classfication - (Base Model).py
+│  ├─ 6_ Classification - Models Explanations.py
+│  ├─ 7_Classfication - Saliency.py
+│  └─ 8_Telegram Help.py
+├─ .dockerignore
+├─ .gitignore
+├─ Dockerfile
+├─ Home.py
+├─ Project1.ipynb
+├─ Project1DataCollection.ipynb
+├─ README.md
+├─ requirements.txt
+├─ test.py
+├─ requirements.txt
+├─ tuned_retinanet_training.ipynb
+└─ utils.py
 ````
 
 
