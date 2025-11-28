@@ -22,6 +22,7 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 
 ---
 ## 🌐 Term 2 Object Detection Model .pth file
+|--------|------|
 | ☁️ **Model.pth** | https://huggingface.co/y-yingg/pedestrian_detection/tree/main | 
 ---
 
