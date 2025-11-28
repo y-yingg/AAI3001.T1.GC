@@ -25,7 +25,7 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 # 📁 Project Structure
 
 
-
+```bash
 📦 AAI3001
 ┣ 📂 models/
 ┣ 📂 data/
@@ -35,7 +35,7 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 ┣ 📜 requirements.txt
 ┣ 📜 utils.py
 ┗ 📜 README.md
-
+````
 
 
 Key modules include:  
