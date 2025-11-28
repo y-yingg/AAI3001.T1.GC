@@ -121,8 +121,7 @@ Features:
 
 ## 1️⃣ Clone the repository
 ```bash
-git clone <your-repo-link>
-cd AAI3001
+git clone https://github.com/y-yingg/AAI3001.T1.GC.git
 ````
 
 ## 2️⃣ Install dependencies
