@@ -1,4 +1,3 @@
-```markdown
 # 🚶‍♂️ Pedestrian Detection System (AAI3001 - Deep Learning & Computer Vision)
 **Team 11**
 
@@ -25,7 +24,7 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 
 # 📁 Project Structure
 
-```
+
 
 📦 AAI3001
 ┣ 📂 models/
@@ -37,7 +36,7 @@ This repository contains an end-to-end **Streamlit** web application featuring:
 ┣ 📜 utils.py
 ┗ 📜 README.md
 
-````
+
 
 Key modules include:  
 - **Classification (Base ResNet-18)** — `5_Classification - (Base Model).py` :contentReference[oaicite:0]{index=0}  
